@@ -17,6 +17,7 @@ uploaded_file = st.file_uploader("Sube tu archivo shak.xlsx", type="xlsx")
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
     st.subheader("Vista previa de los datos")
+    
     st.dataframe(df.head())
     st.session_state['df'] = df
 
@@ -32,7 +33,7 @@ if uploaded_file:
         st.write("Ejemplos de embeddings (primeros 3):")
         st.write(embeddings[:3])
 
-        # Visualización 3D
+        # Visualización 3D de las 3 primeras dimensiones
         st.subheader("Embeddings en 3D (primeras 3 dimensiones)")
         fig = px.scatter_3d(
             x=embeddings[:,0], y=embeddings[:,1], z=embeddings[:,2],
@@ -54,7 +55,12 @@ if uploaded_file:
         st.session_state['num_topics'] = num_topics
         st.session_state['df'] = df
         st.success(f"✅ Clustering completado: {num_topics} tópicos")
-        st.dataframe(df[['song','year','topic']])
+
+        # Mostrar tabla segura
+        cols_to_show = ['song','year']
+        if 'topic' in df.columns:
+            cols_to_show.append('topic')
+        st.dataframe(df[cols_to_show])
 
     # -------------------------------
     # Paso 3: Extraer palabras clave TF-IDF por cluster
@@ -89,15 +95,20 @@ if uploaded_file:
         for topic_id, words in st.session_state['topic_keywords'].items():
             # Tomar las 2-3 palabras principales como nombre
             topic_names[topic_id] = " ".join(words[:3])
-        # Evitar KeyError: map solo si columna 'topic' existe
+
         if 'topic' in df.columns:
             df['topic_name'] = df['topic'].map(topic_names)
-        else:
-            st.warning("Primero debes ejecutar el clustering para generar la columna 'topic'.")
         st.session_state['df'] = df
         st.session_state['topic_names'] = topic_names
         st.success("✅ Nombres generados a partir de TF-IDF")
-        st.dataframe(df[['song','year','topic','topic_name']])
+
+        # Mostrar tabla segura
+        cols_to_show = ['song','year']
+        if 'topic' in df.columns:
+            cols_to_show.append('topic')
+        if 'topic_name' in df.columns:
+            cols_to_show.append('topic_name')
+        st.dataframe(df[cols_to_show])
 
     # -------------------------------
     # Paso 5: Visualización interactiva 3D coloreada por tópico
