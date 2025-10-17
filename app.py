@@ -50,7 +50,7 @@ def load_data(file_path_shakira, file_path_embeddings):
     
     # ESTRATEGIA DE MEMORIA: USAR SOLO LA MITAD DEL CORPUS
     full_size = len(df_shakira_full)
-    sample_size = full_size // 2  # Usar la mitad entera
+    sample_size = full_size // 2
     
     df_shakira = df_shakira_full.head(sample_size)
     df_embeddings = df_embeddings_full.head(sample_size)
@@ -61,8 +61,8 @@ def load_data(file_path_shakira, file_path_embeddings):
     
     # SOLUCIÓN AL VALUERROR: LIMPIEZA RIGUROSA DEL EMBEDDING
     embeddings_cleaned = df_embeddings.apply(pd.to_numeric, errors='coerce')
-    embeddings_cleaned = embeddings_cleaned.fillna(0.0) # Rellenar NaN con 0
-    embeddings = embeddings_cleaned.values.astype(np.float32) # Convertir a matriz numérica
+    embeddings_cleaned = embeddings_cleaned.fillna(0.0)
+    embeddings = embeddings_cleaned.values.astype(np.float32)
 
     st.sidebar.info(f"Usando **{sample_size}** de {full_size} canciones originales (para estabilidad).")
 
@@ -79,7 +79,6 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
     spanish_stopwords = stopwords.words('spanish')
     vectorizer_model = CountVectorizer(stop_words=spanish_stopwords) 
 
-    # 🚨 SOLUCIÓN AL ATTRIBUTEERROR: Usamos MMR como modelo base
     representation_model = MaximalMarginalRelevance(diversity=0.3) 
     
     # 4. Configurar el Modelo de Representación (LLM)
@@ -106,7 +105,6 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
         verbose=False,
     )
     
-    # Entrenamiento (Aquí se usa 'embeddings=embeddings')
     with st.spinner("✨ Descubriendo Tópicos con Embeddings Precalculados... ⏳"):
         topics, probs = topic_model.fit_transform(docs, embeddings=embeddings) 
     
@@ -160,7 +158,8 @@ st.markdown("""
 """)
 
 try:
-    fig_docs = topic_model.visualize_documents(docs, custom_labels=True, title="Mapa de Tópicos (UMAP)")
+    # 🚨 SOLUCIÓN: Usar embeddings=None para evitar el crash del AttributeError
+    fig_docs = topic_model.visualize_documents(docs, custom_labels=True, title="Mapa de Tópicos (UMAP)", embeddings=None)
     st.plotly_chart(fig_docs, use_container_width=True)
 except Exception as e:
     st.error(f"Error al generar la visualización UMAP: {e}.")
@@ -180,9 +179,13 @@ st.dataframe(
     use_container_width=True
 )
 
-st.subheader("Visualización de las Palabras Clave")
-fig_bar = topic_model.visualize_barchart(top_n_topics=10, n_words=8, custom_labels=True)
-st.plotly_chart(fig_bar, use_container_width=True)
+# 🚨 SOLUCIÓN: Solo intentar generar el gráfico si hay tópicos válidos (Topic != -1)
+if not df_topics.empty:
+    st.subheader("Visualización de las Palabras Clave")
+    fig_bar = topic_model.visualize_barchart(top_n_topics=min(10, len(df_topics)), n_words=8, custom_labels=True)
+    st.plotly_chart(fig_bar, use_container_width=True)
+else:
+    st.warning("El modelo no pudo generar tópicos válidos con la muestra actual (solo ruido).")
 
 st.markdown("---")
 
