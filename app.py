@@ -21,7 +21,7 @@ except:
 st.set_page_config(layout="wide", page_title="ShakiraGPT: Análisis de Tópicos")
 st.title("🎤 ShakiraGPT: La Evolución Temática de una Loba 🐺")
 st.markdown("---")
-st.info("⚠️ Ejecutando en **Modo Demostración** (usando un subconjunto de datos) para cumplir con los límites de memoria de la plataforma.")
+st.info("⚠️ Ejecutando en **Modo Demostración** (usando la **mitad del corpus**) para cumplir con los límites de memoria de la plataforma.")
 
 # 🔑 Carga de la Clave API de OpenAI (para el Paso 4)
 openai_api_key = None
@@ -34,24 +34,25 @@ if not openai_api_key:
     st.sidebar.error("⚠️ Clave OpenAI no configurada. El Paso 4 (Mejora con LLM) está deshabilitado.")
 
 # 1. Cargar datos (letras) y embeddings (vectores) - SIN CACHÉ PESADA
-# Quitamos @st.cache_data para esta función, confiamos en la pequeña muestra.
 def load_data(file_path_shakira, file_path_embeddings):
-    """Carga los dos archivos Excel y los sincroniza, limitando a 20 filas."""
+    """Carga los dos archivos Excel y los sincroniza, usando solo la mitad de las filas."""
     try:
-        df_shakira = pd.read_excel(file_path_shakira)
-        df_embeddings = pd.read_excel(file_path_embeddings, header=None)
+        df_shakira_full = pd.read_excel(file_path_shakira)
+        df_embeddings_full = pd.read_excel(file_path_embeddings, header=None)
     except FileNotFoundError as e:
         st.error(f"Error: No se encontró uno de los archivos requeridos: {e}.")
         st.stop()
         
-    df_shakira = df_shakira.dropna(subset=['lyrics', 'song', 'year']).sort_values(by='year').reset_index(drop=True)
-    df_shakira['lyrics'] = df_shakira['lyrics'].astype(str)
-    df_shakira['year'] = pd.to_numeric(df_shakira['year'], errors='coerce').fillna(0).astype(int)
+    df_shakira_full = df_shakira_full.dropna(subset=['lyrics', 'song', 'year']).sort_values(by='year').reset_index(drop=True)
+    df_shakira_full['lyrics'] = df_shakira_full['lyrics'].astype(str)
+    df_shakira_full['year'] = pd.to_numeric(df_shakira_full['year'], errors='coerce').fillna(0).astype(int)
     
-    # 🚨 ESTRATEGIA DE MEMORIA: LIMITAR EL TAMAÑO DEL CORPUS
-    SAMPLE_SIZE = 20
-    df_shakira = df_shakira.head(SAMPLE_SIZE)
-    df_embeddings = df_embeddings.head(SAMPLE_SIZE)
+    # 🚨 ESTRATEGIA DE MEMORIA: USAR SOLO LA MITAD DEL CORPUS
+    full_size = len(df_shakira_full)
+    sample_size = full_size // 2  # Usar la mitad entera
+    
+    df_shakira = df_shakira_full.head(sample_size)
+    df_embeddings = df_embeddings_full.head(sample_size)
     
     # Validación CRUCIAL de orden
     if len(df_shakira) != len(df_embeddings):
@@ -60,18 +61,22 @@ def load_data(file_path_shakira, file_path_embeddings):
         
     embeddings = df_embeddings.values
     
+    st.sidebar.info(f"Usando **{sample_size}** de {full_size} canciones originales.")
+
     return df_shakira, embeddings
 
 
 # 2. Entrenar el modelo BERTopic - SIN CACHÉ PESADA
-# ¡Quitamos @st.cache_resource para evitar sobrecargar la memoria de caché!
 def train_bertopic(docs, embeddings, use_llm_representation=False):
     """Inicializa y entrena el modelo BERTopic con embeddings precalculados en un subconjunto."""
     
     # --- Definición de Modelos BERTopic ---
     umap_model = UMAP(n_neighbors=5, n_components=3, min_dist=0.0, metric='cosine', random_state=42)
     spanish_stopwords = stopwords.words('spanish')
-    vectorizer_model = CountVectorizer(stop_words=spanish_stopwords, min_df=1) # min_df=1 para subconjuntos
+    
+    # CountVectorizer: Sin min_df para evitar el ValueError
+    vectorizer_model = CountVectorizer(stop_words=spanish_stopwords) 
+    
     representation_model = KeyBERTInspired()
     
     if use_llm_representation and openai_api_key:
@@ -110,7 +115,7 @@ use_llm = st.sidebar.toggle(
     disabled=not openai_api_key
 )
 
-# EJECUCIÓN CON MUESTRA
+# EJECUCIÓN CON MUESTRA REDUCIDA
 topic_model, topics, probs = train_bertopic(docs, embeddings, use_llm_representation=use_llm)
 df_shakira['topic'] = topics
 
@@ -196,7 +201,7 @@ st.markdown("---")
 st.header("5️⃣ Análisis Final: Tópicos y Tendencias Temporales")
 
 st.subheader("Evolución de la Prominencia Temática")
-st.markdown("El gráfico muestra cómo la importancia de los temas ha cambiado con el tiempo. (La precisión es limitada debido al subconjunto).")
+st.markdown("El gráfico muestra cómo la importancia de los temas ha cambiado con el tiempo. (La precisión es limitada debido a la muestra).")
 
 try:
     topics_over_time = topic_model.topics_over_time(docs, df_shakira['year'])
