@@ -5,41 +5,9 @@ import plotly.express as px
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import TfidfVectorizer
-import openai
 
 st.set_page_config(layout="wide")
-st.title("🎵 Demo pedagógica de BERTopic estilo KMeans + TF-IDF + GPT")
-
-# -------------------------------
-# API Key de OpenAI desde st.secrets
-# -------------------------------
-openai.api_key = st.secrets.get("OPENAI_API_KEY", "TU_API_KEY_AQUI")
-
-# -------------------------------
-# Función para generar nombres de temas con GPT
-# -------------------------------
-def generate_topic_name(keywords):
-    if not keywords or all(k=="N/A" for k in keywords):
-        return "Tema automático"
-    
-    prompt = (
-        f"Estas son palabras clave de un tema extraído de letras de canciones: {', '.join(keywords)}. "
-        "Sugiere un nombre corto, creativo y representativo para este tema (1-3 palabras)."
-    )
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=15,
-            temperature=0.7
-        )
-        name = response.choices[0].message['content'].strip()
-        # Limpiar caracteres raros
-        name = name.replace("\n","").replace(".","").strip()
-        return name if name else "Tema automático"
-    except Exception as e:
-        print("Error GPT:", e)
-        return "Tema automático"
+st.title("🎵 Demo pedagógica de BERTopic con TF-IDF")
 
 # -------------------------------
 # Paso 0: Subir archivo
@@ -82,7 +50,7 @@ if uploaded_file:
         df['topic'] = labels
         st.session_state['kmeans_labels'] = labels
         st.session_state['num_topics'] = num_topics
-        st.session_state['df'] = df  # Guardar df actualizado
+        st.session_state['df'] = df
         st.success(f"✅ Clustering completado: {num_topics} tópicos")
         st.dataframe(df[['song','year','topic']])
 
@@ -110,21 +78,17 @@ if uploaded_file:
         st.session_state['topic_keywords'] = topic_keywords
 
     # -------------------------------
-    # Paso 4: Nombrar tópicos con GPT
+    # Paso 4: Nombrar tópicos a partir de TF-IDF
     # -------------------------------
-    if 'topic_keywords' in st.session_state and st.button("4️⃣ Nombrar tópicos con GPT"):
+    if 'topic_keywords' in st.session_state and st.button("4️⃣ Nombrar tópicos automáticamente"):
         topic_names = {}
         for topic_id, words in st.session_state['topic_keywords'].items():
-            topic_names[topic_id] = generate_topic_name(words)
-
-        # Asegurarse de que df tenga la columna 'topic'
-        if 'topic' not in df.columns:
-            df['topic'] = st.session_state['kmeans_labels']
-
+            # Tomar las 2-3 palabras principales como nombre
+            topic_names[topic_id] = " ".join(words[:3])
         df['topic_name'] = df['topic'].map(topic_names)
         st.session_state['df'] = df
         st.session_state['topic_names'] = topic_names
-        st.success("✅ Nombres generados por GPT")
+        st.success("✅ Nombres generados a partir de TF-IDF")
         st.dataframe(df[['song','year','topic','topic_name']])
 
     # -------------------------------
