@@ -12,11 +12,11 @@ import numpy as np
 from nltk.corpus import stopwords
 
 # --- CLASE DUMMY PARA EVITAR EL ERROR DE UMAP ---
-# Solución al AttributeError: 'NoneType' object has no attribute 'embed_documents'
+# Definición de la clase fuera de cualquier función para garantizar su existencia
 class DummyEmbedder:
     """Clase ficticia con un método embed_documents vacío para evitar el crash en visualización."""
     def embed_documents(self, documents, verbose=False):
-        # Simplemente retorna un array vacío, no se usa para el cálculo real.
+        # Retorna un array vacío; el cálculo de UMAP ya ocurrió con los embeddings reales.
         return np.array([[] for _ in documents])
 
 # --- CONFIGURACIÓN INICIAL Y DESCARGA DE RECURSOS ---
@@ -37,7 +37,7 @@ openai_api_key = None
 try:
     openai_api_key = st.secrets["openai"]["api_key"]
 except (KeyError, AttributeError):
-    openai_api_key = os.environ.get("OPENAI_API_KEY")
+    openai_api_key = os.environ.get("OPENEN_API_KEY")
 
 if not openai_api_key:
     st.sidebar.error("⚠️ Clave OpenAI no configurada. El Paso 4 (Mejora con LLM) está deshabilitado.")
@@ -114,6 +114,7 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
     )
     
     # 🚨 SOLUCIÓN FINAL AL ERROR DE UMAP: Inyectar el DummyEmbedder
+    # Esto asegura que el método exista para la visualización, pero no consume memoria.
     topic_model.embedding_model = DummyEmbedder()
     
     with st.spinner("✨ Descubriendo Tópicos con Embeddings Precalculados... ⏳"):
@@ -147,7 +148,6 @@ df_topics = df_topics.rename(columns={
     'Representation': 'Palabras Clave (c-TF-IDF)'
 })
 
-
 # --------------------------------------------------------------------------------------
 ## ➡️ PASO 1: EXPLORACIÓN DE DATOS
 # --------------------------------------------------------------------------------------
@@ -169,11 +169,11 @@ st.markdown("""
 """)
 
 try:
-    # Ahora la visualización debería funcionar gracias al DummyEmbedder
+    # Pasamos los embeddings REALES (para el hover) y confiamos en el DummyEmbedder
     fig_docs = topic_model.visualize_documents(docs, custom_labels=True, title="Mapa de Tópicos (UMAP)", embeddings=embeddings)
     st.plotly_chart(fig_docs, use_container_width=True)
 except Exception as e:
-    st.error(f"Error al generar la visualización UMAP: {e}. (Puede ser debido a errores en la creación de tópicos con pocos datos)")
+    st.error(f"Error al generar la visualización UMAP: {e}.")
     
 st.markdown("---")
 
