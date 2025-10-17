@@ -11,6 +11,14 @@ import nltk
 import numpy as np
 from nltk.corpus import stopwords
 
+# --- CLASE DUMMY PARA EVITAR EL ERROR DE UMAP ---
+# Solución al AttributeError: 'NoneType' object has no attribute 'embed_documents'
+class DummyEmbedder:
+    """Clase ficticia con un método embed_documents vacío para evitar el crash en visualización."""
+    def embed_documents(self, documents, verbose=False):
+        # Simplemente retorna un array vacío, no se usa para el cálculo real.
+        return np.array([[] for _ in documents])
+
 # --- CONFIGURACIÓN INICIAL Y DESCARGA DE RECURSOS ---
 try:
     nltk.data.find('corpora/stopwords')
@@ -105,6 +113,9 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
         verbose=False,
     )
     
+    # 🚨 SOLUCIÓN FINAL AL ERROR DE UMAP: Inyectar el DummyEmbedder
+    topic_model.embedding_model = DummyEmbedder()
+    
     with st.spinner("✨ Descubriendo Tópicos con Embeddings Precalculados... ⏳"):
         topics, probs = topic_model.fit_transform(docs, embeddings=embeddings) 
     
@@ -158,11 +169,11 @@ st.markdown("""
 """)
 
 try:
-    # 🚨 SOLUCIÓN: Usar embeddings=None para evitar el crash del AttributeError
-    fig_docs = topic_model.visualize_documents(docs, custom_labels=True, title="Mapa de Tópicos (UMAP)", embeddings=None)
+    # Ahora la visualización debería funcionar gracias al DummyEmbedder
+    fig_docs = topic_model.visualize_documents(docs, custom_labels=True, title="Mapa de Tópicos (UMAP)", embeddings=embeddings)
     st.plotly_chart(fig_docs, use_container_width=True)
 except Exception as e:
-    st.error(f"Error al generar la visualización UMAP: {e}.")
+    st.error(f"Error al generar la visualización UMAP: {e}. (Puede ser debido a errores en la creación de tópicos con pocos datos)")
     
 st.markdown("---")
 
@@ -179,7 +190,7 @@ st.dataframe(
     use_container_width=True
 )
 
-# 🚨 SOLUCIÓN: Solo intentar generar el gráfico si hay tópicos válidos (Topic != -1)
+# Solución al ValueError en Plotly: Solo generar si hay tópicos válidos
 if not df_topics.empty:
     st.subheader("Visualización de las Palabras Clave")
     fig_bar = topic_model.visualize_barchart(top_n_topics=min(10, len(df_topics)), n_words=8, custom_labels=True)
