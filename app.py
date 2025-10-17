@@ -13,6 +13,7 @@ from openai import OpenAI
 st.set_page_config(layout="wide")
 st.title("🎵 Demo pedagógica BERTopic + GPT para nombres de tópicos")
 
+# Inicializamos OpenAI
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # -------------------------------
@@ -36,10 +37,11 @@ if uploaded_file:
             st.session_state['embeddings'] = embeddings
         st.success("✅ Embeddings generados")
 
+        # Mostramos las primeras 3 dimensiones para 3D
         fig = px.scatter_3d(
             x=embeddings[:,0], y=embeddings[:,1], z=embeddings[:,2],
             hover_data={'Song': df['song'], 'Year': df['year']},
-            title="Embeddings 3D"
+            title="Embeddings 3D (primeras 3 dimensiones)"
         )
         st.plotly_chart(fig)
 
@@ -50,7 +52,7 @@ if uploaded_file:
         num_topics = st.slider("Número de tópicos (clusters)", min_value=3, max_value=15, value=5)
         kmeans_model = KMeans(n_clusters=num_topics, random_state=42)
         labels = kmeans_model.fit_predict(st.session_state['embeddings'])
-        df['topic'] = labels
+        df['topic'] = labels  # aseguramos que exista la columna topic
         st.session_state['kmeans_labels'] = labels
         st.session_state['num_topics'] = num_topics
         st.session_state['df'] = df
@@ -62,7 +64,8 @@ if uploaded_file:
     # -------------------------------
     if 'kmeans_labels' in st.session_state and st.button("3️⃣ Extraer palabras clave TF-IDF"):
         df = st.session_state['df']
-        vectorizer = TfidfVectorizer(stop_words="english")
+        # Mejor filtrado de stopwords + mínimo de frecuencia
+        vectorizer = TfidfVectorizer(stop_words='english', min_df=2)
         X = vectorizer.fit_transform(df['lyrics'].astype(str))
         topic_keywords = {}
 
