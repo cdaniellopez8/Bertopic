@@ -80,11 +80,12 @@ if uploaded_file:
     # -------------------------------
     if 'kmeans_labels' in st.session_state and st.button("3️⃣ Extraer palabras clave con TF-IDF (BERTopic)"):
         topic_model = BERTopic(embedding_model=None, verbose=True)
-        topics, probs = topic_model.fit_transform(df['lyrics'].astype(str),
-                                                 embeddings=st.session_state['embeddings'])
-        # Reemplazar clusters con KMeans
-        topic_model.update_topics(df['lyrics'].astype(str), topics=st.session_state['kmeans_labels'],
-                                  embeddings=st.session_state['embeddings'])
+        topics, probs = topic_model.fit_transform(df['lyrics'].astype(str))
+
+        # Reemplazar topics con KMeans
+        topic_model.update_topics(documents=df['lyrics'].astype(str),
+                                  topics=st.session_state['kmeans_labels'])
+
         df['topic'] = st.session_state['kmeans_labels']
         st.session_state['topic_model'] = topic_model
 
