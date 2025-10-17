@@ -19,16 +19,26 @@ openai.api_key = st.secrets.get("OPENAI_API_KEY", "TU_API_KEY_AQUI")
 # Función para generar nombres de temas con GPT
 # -------------------------------
 def generate_topic_name(keywords):
-    prompt = f"Estas son las palabras clave de un tema: {keywords}. " \
-             "Sugiere un nombre corto y representativo para este tema."
+    if not keywords or all(k=="N/A" for k in keywords):
+        return "Tema automático"
+    
+    prompt = (
+        f"Estas son palabras clave de un tema extraído de letras de canciones: {', '.join(keywords)}. "
+        "Sugiere un nombre corto, creativo y representativo para este tema (1-3 palabras)."
+    )
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=10
+            max_tokens=15,
+            temperature=0.7
         )
-        return response.choices[0].message['content'].strip()
-    except:
+        name = response.choices[0].message['content'].strip()
+        # Limpiar caracteres raros
+        name = name.replace("\n","").replace(".","").strip()
+        return name if name else "Tema automático"
+    except Exception as e:
+        print("Error GPT:", e)
         return "Tema automático"
 
 # -------------------------------
