@@ -2,13 +2,13 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
+from sklearn.feature_extraction.text import TfidfVectorizer
 import openai
 
 st.set_page_config(layout="wide")
-st.title("🎵 Demo pedagógica de BERTopic paso a paso")
+st.title("🎵 Demo pedagógica de BERTopic estilo KMeans + TF-IDF + GPT")
 
 # -------------------------------
 # API Key de OpenAI desde st.secrets
@@ -76,46 +76,53 @@ if uploaded_file:
         st.dataframe(df[['song','year','topic']])
 
     # -------------------------------
-    # Paso 3: BERTopic + TF-IDF palabras clave
+    # Paso 3: Extraer palabras clave TF-IDF por cluster
     # -------------------------------
-    if 'kmeans_labels' in st.session_state and st.button("3️⃣ Extraer palabras clave con TF-IDF (BERTopic)"):
-        topic_model = BERTopic(embedding_model=None, verbose=True)
-        topics, probs = topic_model.fit_transform(df['lyrics'].astype(str))
+    if 'kmeans_labels' in st.session_state and st.button("3️⃣ Extraer palabras clave TF-IDF"):
+        vectorizer = TfidfVectorizer(stop_words="english")
+        X = vectorizer.fit_transform(df['lyrics'].astype(str))
+        topic_keywords = {}
 
-        # Reemplazar topics con KMeans
-        topic_model.update_topics(documents=df['lyrics'].astype(str),
-                                  topics=st.session_state['kmeans_labels'])
+        st.subheader("Palabras clave por tópico")
+        for t in range(st.session_state['num_topics']):
+            idx = np.where(st.session_state['kmeans_labels'] == t)[0]
+            if len(idx) == 0:
+                topic_keywords[t] = ["N/A"]
+                continue
+            tfidf_avg = X[idx].mean(axis=0)
+            words = [(vectorizer.get_feature_names_out()[i], tfidf_avg[0, i]) 
+                     for i in range(tfidf_avg.shape[1])]
+            words = sorted(words, key=lambda x: x[1], reverse=True)[:10]
+            topic_keywords[t] = [w for w,_ in words]
+            st.write(f"Tópico {t}: {', '.join(topic_keywords[t])}")
 
-        df['topic'] = st.session_state['kmeans_labels']
-        st.session_state['topic_model'] = topic_model
-
-        # Mostrar palabras clave TF-IDF
-        st.subheader("Palabras clave de cada tópico")
-        for topic_id in range(st.session_state['num_topics']):
-            words = [word for word, _ in topic_model.get_topic(topic_id)]
-            st.write(f"Tópico {topic_id}: {', '.join(words)}")
+        st.session_state['topic_keywords'] = topic_keywords
 
     # -------------------------------
     # Paso 4: Nombrar tópicos con GPT
     # -------------------------------
-    if 'topic_model' in st.session_state and st.button("4️⃣ Nombrar tópicos con GPT"):
+    if 'topic_keywords' in st.session_state and st.button("4️⃣ Nombrar tópicos con GPT"):
         topic_names = {}
-        for topic_id in range(st.session_state['num_topics']):
-            words = [word for word, _ in st.session_state['topic_model'].get_topic(topic_id)]
+        for topic_id, words in st.session_state['topic_keywords'].items():
             topic_names[topic_id] = generate_topic_name(words)
 
         df['topic_name'] = df['topic'].map(topic_names)
         st.session_state['df'] = df
+        st.session_state['topic_names'] = topic_names
         st.success("✅ Nombres generados por GPT")
         st.dataframe(df[['song','year','topic','topic_name']])
 
     # -------------------------------
-    # Paso 5: Visualización interactiva
+    # Paso 5: Visualización interactiva 3D coloreada por tópico
     # -------------------------------
-    if 'topic_model' in st.session_state and st.button("5️⃣ Visualizar tópicos"):
-        st.subheader("Visualización de tópicos")
-        try:
-            fig = st.session_state['topic_model'].visualize_topics()
-            st.plotly_chart(fig)
-        except Exception as e:
-            st.error(f"No se pudo generar la visualización: {e}")
+    if 'df' in st.session_state and st.button("5️⃣ Visualizar tópicos en 3D"):
+        df_vis = st.session_state['df']
+        embeddings = st.session_state['embeddings']
+
+        fig = px.scatter_3d(
+            x=embeddings[:,0], y=embeddings[:,1], z=embeddings[:,2],
+            color=df_vis['topic_name'],
+            hover_data={'Song': df_vis['song'], 'Year': df_vis['year'], 'Topic': df_vis['topic_name']},
+            title="Embeddings 3D coloreados por tópico"
+        )
+        st.plotly_chart(fig)
