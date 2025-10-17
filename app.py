@@ -12,7 +12,8 @@ import nltk
 # Descargar stopwords de NLTK si no están presentes
 try:
     nltk.data.find('corpora/stopwords')
-except nltk.downloader.DownloadError:
+except: # Capturamos cualquier excepción, incluyendo la de recurso no encontrado
+    st.info("Descargando el recurso 'stopwords' de NLTK por primera vez. Esto solo sucede una vez.")
     nltk.download('stopwords')
 
 # --- CONFIGURACIÓN Y CACHÉ DE RECURSOS ---
@@ -255,3 +256,4 @@ else:
     st.info("No hay canciones para este tópico.")
 
 st.caption("¡Gracias por explorar la evolución de los tópicos en la discografía de Shakira!")
+
