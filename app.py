@@ -8,7 +8,7 @@ from sklearn.cluster import KMeans
 import openai
 
 st.set_page_config(layout="wide")
-st.title("🎵 Demo interactiva de BERTopic paso a paso con GPT")
+st.title("🎵 Demo pedagógica de BERTopic paso a paso")
 
 # -------------------------------
 # API Key de OpenAI desde st.secrets
@@ -53,9 +53,7 @@ if uploaded_file:
         st.write("Ejemplos de embeddings (primeros 3):")
         st.write(embeddings[:3])
 
-        # -------------------------------
         # Visualización 3D
-        # -------------------------------
         st.subheader("Embeddings en 3D (primeras 3 dimensiones)")
         fig = px.scatter_3d(
             x=embeddings[:,0], y=embeddings[:,1], z=embeddings[:,2],
@@ -65,73 +63,58 @@ if uploaded_file:
         st.plotly_chart(fig)
 
     # -------------------------------
-    # Paso 2: Generar temas con BERTopic + KMeans
+    # Paso 2: Clustering con KMeans
     # -------------------------------
-    if 'embeddings' in st.session_state and st.button("2️⃣ Generar temas (BERTopic)"):
-        with st.spinner("Generando temas..."):
-            num_topics = st.slider("Número de tópicos (clusters)", min_value=3, max_value=15, value=5)
-            kmeans_model = KMeans(n_clusters=num_topics, random_state=42)
-
-            topic_model = BERTopic(
-                embedding_model=None,
-                verbose=True,
-                calculate_probabilities=True
-            )
-            topics, probs = topic_model.fit_transform(df['lyrics'].astype(str),
-                                                     embeddings=st.session_state['embeddings'],
-                                                     clustering_model=kmeans_model)
-            df['topic'] = topics
-            st.session_state['topic_model'] = topic_model
-            st.session_state['df'] = df
-        st.success("✅ Temas generados")
-        st.subheader("Tabla de temas asignados")
+    if 'embeddings' in st.session_state and st.button("2️⃣ Clustering con KMeans"):
+        num_topics = st.slider("Número de tópicos (clusters)", min_value=3, max_value=15, value=5)
+        kmeans_model = KMeans(n_clusters=num_topics, random_state=42)
+        labels = kmeans_model.fit_predict(st.session_state['embeddings'])
+        df['topic'] = labels
+        st.session_state['kmeans_labels'] = labels
+        st.session_state['num_topics'] = num_topics
+        st.success(f"✅ Clustering completado: {num_topics} tópicos")
         st.dataframe(df[['song','year','topic']])
 
     # -------------------------------
-    # Paso 3: Nombrar temas con GPT
+    # Paso 3: BERTopic + TF-IDF palabras clave
     # -------------------------------
-    if 'topic_model' in st.session_state and 'df' in st.session_state and st.button("3️⃣ Nombrar temas con GPT"):
-        topic_info = st.session_state['topic_model'].get_topic_info()
+    if 'kmeans_labels' in st.session_state and st.button("3️⃣ Extraer palabras clave con TF-IDF (BERTopic)"):
+        topic_model = BERTopic(embedding_model=None, verbose=True)
+        topics, probs = topic_model.fit_transform(df['lyrics'].astype(str),
+                                                 embeddings=st.session_state['embeddings'])
+        # Reemplazar clusters con KMeans
+        topic_model.update_topics(df['lyrics'].astype(str), topics=st.session_state['kmeans_labels'],
+                                  embeddings=st.session_state['embeddings'])
+        df['topic'] = st.session_state['kmeans_labels']
+        st.session_state['topic_model'] = topic_model
+
+        # Mostrar palabras clave TF-IDF
+        st.subheader("Palabras clave de cada tópico")
+        for topic_id in range(st.session_state['num_topics']):
+            words = [word for word, _ in topic_model.get_topic(topic_id)]
+            st.write(f"Tópico {topic_id}: {', '.join(words)}")
+
+    # -------------------------------
+    # Paso 4: Nombrar tópicos con GPT
+    # -------------------------------
+    if 'topic_model' in st.session_state and st.button("4️⃣ Nombrar tópicos con GPT"):
         topic_names = {}
-        for topic_id in topic_info['Topic']:
-            if topic_id != -1:  # ignorar outliers
-                keywords = [word for word, _ in st.session_state['topic_model'].get_topic(topic_id)]
-                topic_names[topic_id] = generate_topic_name(keywords)
+        for topic_id in range(st.session_state['num_topics']):
+            words = [word for word, _ in st.session_state['topic_model'].get_topic(topic_id)]
+            topic_names[topic_id] = generate_topic_name(words)
 
-        # Asignación segura de nombres
-        df = st.session_state['df']
-        df['topic_name'] = None
-        for topic_id, name in topic_names.items():
-            df.loc[df['topic'] == topic_id, 'topic_name'] = name
-        df['topic_name'].fillna("Outlier / Sin tema", inplace=True)
-
+        df['topic_name'] = df['topic'].map(topic_names)
         st.session_state['df'] = df
-        st.session_state['topic_names'] = topic_names
-        st.success("✅ Nombres de temas generados")
-        st.dataframe(df[['song','year','topic_name']])
+        st.success("✅ Nombres generados por GPT")
+        st.dataframe(df[['song','year','topic','topic_name']])
 
     # -------------------------------
-    # Paso 4: Visualización interactiva de temas
+    # Paso 5: Visualización interactiva
     # -------------------------------
-    if 'topic_model' in st.session_state and st.button("4️⃣ Visualización interactiva de temas"):
+    if 'topic_model' in st.session_state and st.button("5️⃣ Visualizar tópicos"):
+        st.subheader("Visualización de tópicos")
         try:
-            st.subheader("Visualización de temas")
             fig = st.session_state['topic_model'].visualize_topics()
             st.plotly_chart(fig)
         except Exception as e:
             st.error(f"No se pudo generar la visualización: {e}")
-
-    # -------------------------------
-    # Paso 5: Filtrar por año
-    # -------------------------------
-    if 'df' in st.session_state:
-        st.subheader("Filtrar por año")
-        min_year = int(df['year'].min())
-        max_year = int(df['year'].max())
-        year_selected = st.slider(
-            "Selecciona rango de años",
-            min_year, max_year,
-            (min_year, max_year)
-        )
-        filtered_df = df[(df['year'] >= year_selected[0]) & (df['year'] <= year_selected[1])]
-        st.dataframe(filtered_df)
