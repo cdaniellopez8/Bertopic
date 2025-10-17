@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
+from sklearn.cluster import KMeans
 import openai
 
 st.set_page_config(layout="wide")
@@ -64,16 +65,21 @@ if uploaded_file:
         st.plotly_chart(fig)
 
     # -------------------------------
-    # Paso 2: Generar temas con BERTopic
+    # Paso 2: Generar temas con BERTopic + KMeans
     # -------------------------------
     if 'embeddings' in st.session_state and st.button("2️⃣ Generar temas (BERTopic)"):
         with st.spinner("Generando temas..."):
+            num_topics = st.slider("Número de tópicos (clusters)", min_value=3, max_value=15, value=5)
+            kmeans_model = KMeans(n_clusters=num_topics, random_state=42)
+
             topic_model = BERTopic(
-                embedding_model=None,  # ya usamos embeddings
-                hdbscan_model=None,    # desactiva HDBSCAN
-                verbose=True
+                embedding_model=None,
+                verbose=True,
+                calculate_probabilities=True
             )
-            topics, probs = topic_model.fit_transform(df['lyrics'].astype(str), embeddings=st.session_state['embeddings'])
+            topics, probs = topic_model.fit_transform(df['lyrics'].astype(str),
+                                                     embeddings=st.session_state['embeddings'],
+                                                     clustering_model=kmeans_model)
             df['topic'] = topics
             st.session_state['topic_model'] = topic_model
             st.session_state['df'] = df
@@ -108,9 +114,12 @@ if uploaded_file:
     # Paso 4: Visualización interactiva de temas
     # -------------------------------
     if 'topic_model' in st.session_state and st.button("4️⃣ Visualización interactiva de temas"):
-        st.subheader("Visualización de temas")
-        fig = st.session_state['topic_model'].visualize_topics()
-        st.plotly_chart(fig)
+        try:
+            st.subheader("Visualización de temas")
+            fig = st.session_state['topic_model'].visualize_topics()
+            st.plotly_chart(fig)
+        except Exception as e:
+            st.error(f"No se pudo generar la visualización: {e}")
 
     # -------------------------------
     # Paso 5: Filtrar por año
