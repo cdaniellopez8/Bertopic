@@ -8,19 +8,18 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from openai import OpenAI
 
 # -------------------------------
-# Configuración
+# Configuración de Streamlit
 # -------------------------------
 st.set_page_config(layout="wide")
-st.title("🎵 Demo pedagógica BERTopic + GPT para nombres de tópicos")
+st.title("🎵 BERTopic pedagógico con TF-IDF + GPT para nombres de tópicos")
 
-# Inicializamos OpenAI
+# Inicializar cliente OpenAI
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # -------------------------------
 # Paso 0: Subir archivo
 # -------------------------------
 uploaded_file = st.file_uploader("Sube tu archivo shak.xlsx", type="xlsx")
-
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
     st.subheader("Vista previa de los datos")
@@ -37,7 +36,7 @@ if uploaded_file:
             st.session_state['embeddings'] = embeddings
         st.success("✅ Embeddings generados")
 
-        # Mostramos las primeras 3 dimensiones para 3D
+        # Mostrar primeras 3 dimensiones
         fig = px.scatter_3d(
             x=embeddings[:,0], y=embeddings[:,1], z=embeddings[:,2],
             hover_data={'Song': df['song'], 'Year': df['year']},
@@ -46,13 +45,13 @@ if uploaded_file:
         st.plotly_chart(fig)
 
     # -------------------------------
-    # Paso 2: Clustering con KMeans
+    # Paso 2: Clustering KMeans
     # -------------------------------
     if 'embeddings' in st.session_state and st.button("2️⃣ Clustering con KMeans"):
         num_topics = st.slider("Número de tópicos (clusters)", min_value=3, max_value=15, value=5)
         kmeans_model = KMeans(n_clusters=num_topics, random_state=42)
         labels = kmeans_model.fit_predict(st.session_state['embeddings'])
-        df['topic'] = labels  # aseguramos que exista la columna topic
+        df['topic'] = labels  # columna topic siempre presente
         st.session_state['kmeans_labels'] = labels
         st.session_state['num_topics'] = num_topics
         st.session_state['df'] = df
@@ -60,11 +59,10 @@ if uploaded_file:
         st.dataframe(df[['song','year','topic']])
 
     # -------------------------------
-    # Paso 3: Extraer palabras clave TF-IDF por cluster
+    # Paso 3: Palabras clave TF-IDF por cluster
     # -------------------------------
     if 'kmeans_labels' in st.session_state and st.button("3️⃣ Extraer palabras clave TF-IDF"):
         df = st.session_state['df']
-        # Mejor filtrado de stopwords + mínimo de frecuencia
         vectorizer = TfidfVectorizer(stop_words='english', min_df=2)
         X = vectorizer.fit_transform(df['lyrics'].astype(str))
         topic_keywords = {}
@@ -115,7 +113,7 @@ if uploaded_file:
         st.dataframe(df[['song','year','topic','topic_name']])
 
     # -------------------------------
-    # Paso 5: Visualización 3D coloreada por nombre de tópico
+    # Paso 5: Visualización 3D coloreada por tópico
     # -------------------------------
     if 'df' in st.session_state and 'embeddings' in st.session_state and st.button("5️⃣ Visualizar tópicos en 3D"):
         df_vis = st.session_state['df']
