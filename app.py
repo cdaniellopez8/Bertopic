@@ -11,11 +11,10 @@ import nltk
 import numpy as np
 from nltk.corpus import stopwords
 
-# --- CONFIGURACIÓN INICIAL ---
+# --- CONFIGURACIÓN INICIAL Y DESCARGA DE RECURSOS ---
 try:
     nltk.data.find('corpora/stopwords')
 except:
-    # Usar st.info en lugar de print/warning para Streamlit
     st.info("Descargando el recurso 'stopwords' de NLTK (solo la primera vez).")
     nltk.download('stopwords')
 
@@ -40,7 +39,6 @@ def load_data(file_path_shakira, file_path_embeddings):
     """Carga los dos archivos Excel, los sincroniza y aplica limpieza rigurosa a embeddings."""
     try:
         df_shakira_full = pd.read_excel(file_path_shakira)
-        # Cargamos con header=None para tratar las columnas como dimensiones
         df_embeddings_full = pd.read_excel(file_path_embeddings, header=None) 
     except FileNotFoundError as e:
         st.error(f"Error: No se encontró uno de los archivos requeridos: {e}.")
@@ -57,13 +55,11 @@ def load_data(file_path_shakira, file_path_embeddings):
     df_shakira = df_shakira_full.head(sample_size)
     df_embeddings = df_embeddings_full.head(sample_size)
     
-    # Validación CRUCIAL de orden
     if len(df_shakira) != len(df_embeddings):
         st.error(f"Error: La muestra de canciones ({len(df_shakira)}) no coincide con los embeddings ({len(df_embeddings)}).")
         st.stop()
     
-    # 🚨 SOLUCIÓN AL VALUERROR: LIMPIEZA RIGUROSA DEL EMBEDDING
-    # Asegura que no haya NaN o valores no finitos, que causan el fallo de UMAP
+    # SOLUCIÓN AL VALUERROR: LIMPIEZA RIGUROSA DEL EMBEDDING
     embeddings_cleaned = df_embeddings.apply(pd.to_numeric, errors='coerce')
     embeddings_cleaned = embeddings_cleaned.fillna(0.0) # Rellenar NaN con 0
     embeddings = embeddings_cleaned.values.astype(np.float32) # Convertir a matriz numérica
@@ -79,11 +75,7 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
     """Inicializa y entrena el modelo BERTopic con embeddings precalculados."""
     
     # --- Definición de Modelos BERTopic ---
-    
-    # UMAP: Modelo de reducción optimizado para ahorrar memoria
     umap_model = UMAP(n_neighbors=5, n_components=3, min_dist=0.0, metric='cosine', random_state=42)
-
-    # CountVectorizer: Stopwords en español y SIN min_df (para evitar ValueError en corpus pequeños)
     spanish_stopwords = stopwords.words('spanish')
     vectorizer_model = CountVectorizer(stop_words=spanish_stopwords) 
 
@@ -101,7 +93,6 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
                                           prompt=prompt,
                                           delay_in_seconds=5)
         except Exception:
-            # Si falla el LLM, usamos KeyBERT y avisamos
             st.sidebar.warning("Fallo al conectar con GPT-4o-mini. Usando KeyBERT.")
             
     # Inicialización de BERTopic 
@@ -113,6 +104,9 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
         calculate_probabilities=True,
         verbose=False,
     )
+    
+    # 🚨 SOLUCIÓN al AttributeError: Añadir un placeholder para que KeyBERT no falle
+    topic_model.embedding_model = None 
     
     # Entrenamiento (Aquí se usa 'embeddings=embeddings')
     with st.spinner("✨ Descubriendo Tópicos con Embeddings Precalculados... ⏳"):
@@ -148,7 +142,7 @@ df_topics = df_topics.rename(columns={
 
 
 # --------------------------------------------------------------------------------------
-# ➡️ PASO 1: EXPLORACIÓN DE DATOS
+## ➡️ PASO 1: EXPLORACIÓN DE DATOS
 # --------------------------------------------------------------------------------------
 
 st.header("1️⃣ Paso Inicial: Carga y Limpieza de Datos")
@@ -158,7 +152,7 @@ st.dataframe(df_shakira[['song', 'year', 'lyrics']].head(), use_container_width=
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# ➡️ PASO 2: CARGA DE EMBEDDINGS Y REDUCCIÓN DE DIMENSIONALIDAD (UMAP)
+## ➡️ PASO 2: CARGA DE EMBEDDINGS Y REDUCCIÓN DE DIMENSIONALIDAD (UMAP)
 # --------------------------------------------------------------------------------------
 
 st.header("2️⃣ Carga de Embeddings Precalculados y Proyección (UMAP)")
@@ -176,7 +170,7 @@ except Exception as e:
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# ➡️ PASO 3: AGRUPACIÓN (HDBSCAN) Y TÓPICOS BASE (c-TF-IDF)
+## ➡️ PASO 3: AGRUPACIÓN (HDBSCAN) Y TÓPICOS BASE (c-TF-IDF)
 # --------------------------------------------------------------------------------------
 
 st.header("3️⃣ Agrupación (HDBSCAN) y Tópicos Base (c-TF-IDF)")
@@ -195,7 +189,7 @@ st.plotly_chart(fig_bar, use_container_width=True)
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# ➡️ PASO 4: MEJORA DE LA REPRESENTACIÓN CON LLMS
+## ➡️ PASO 4: MEJORA DE LA REPRESENTACIÓN CON LLMS
 # --------------------------------------------------------------------------------------
 
 st.header("4️⃣ Mejora de la Representación con LLMs")
@@ -213,7 +207,7 @@ else:
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-# ➡️ PASO 5: ANÁLISIS FINAL (Visualizaciones)
+## ➡️ PASO 5: ANÁLISIS FINAL (Visualizaciones)
 # --------------------------------------------------------------------------------------
 
 st.header("5️⃣ Análisis Final: Tópicos y Tendencias Temporales")
