@@ -3,4 +3,5 @@ pandas
 openpyxl
 bertopic[full]
 openai
+nltk
 
