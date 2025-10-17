@@ -18,6 +18,7 @@ if uploaded_file:
     df = pd.read_excel(uploaded_file)
     st.subheader("Vista previa de los datos")
     st.dataframe(df.head())
+    st.session_state['df'] = df
 
     # -------------------------------
     # Paso 1: Crear embeddings
@@ -47,6 +48,7 @@ if uploaded_file:
         num_topics = st.slider("Número de tópicos (clusters)", min_value=3, max_value=15, value=5)
         kmeans_model = KMeans(n_clusters=num_topics, random_state=42)
         labels = kmeans_model.fit_predict(st.session_state['embeddings'])
+        df = st.session_state['df']
         df['topic'] = labels
         st.session_state['kmeans_labels'] = labels
         st.session_state['num_topics'] = num_topics
@@ -58,6 +60,7 @@ if uploaded_file:
     # Paso 3: Extraer palabras clave TF-IDF por cluster
     # -------------------------------
     if 'kmeans_labels' in st.session_state and st.button("3️⃣ Extraer palabras clave TF-IDF"):
+        df = st.session_state['df']
         vectorizer = TfidfVectorizer(stop_words="english")
         X = vectorizer.fit_transform(df['lyrics'].astype(str))
         topic_keywords = {}
@@ -81,11 +84,16 @@ if uploaded_file:
     # Paso 4: Nombrar tópicos a partir de TF-IDF
     # -------------------------------
     if 'topic_keywords' in st.session_state and st.button("4️⃣ Nombrar tópicos automáticamente"):
+        df = st.session_state['df']
         topic_names = {}
         for topic_id, words in st.session_state['topic_keywords'].items():
             # Tomar las 2-3 palabras principales como nombre
             topic_names[topic_id] = " ".join(words[:3])
-        df['topic_name'] = df['topic'].map(topic_names)
+        # Evitar KeyError: map solo si columna 'topic' existe
+        if 'topic' in df.columns:
+            df['topic_name'] = df['topic'].map(topic_names)
+        else:
+            st.warning("Primero debes ejecutar el clustering para generar la columna 'topic'.")
         st.session_state['df'] = df
         st.session_state['topic_names'] = topic_names
         st.success("✅ Nombres generados a partir de TF-IDF")
@@ -94,14 +102,17 @@ if uploaded_file:
     # -------------------------------
     # Paso 5: Visualización interactiva 3D coloreada por tópico
     # -------------------------------
-    if 'df' in st.session_state and st.button("5️⃣ Visualizar tópicos en 3D"):
+    if 'df' in st.session_state and 'embeddings' in st.session_state and st.button("5️⃣ Visualizar tópicos en 3D"):
         df_vis = st.session_state['df']
         embeddings = st.session_state['embeddings']
 
-        fig = px.scatter_3d(
-            x=embeddings[:,0], y=embeddings[:,1], z=embeddings[:,2],
-            color=df_vis['topic_name'],
-            hover_data={'Song': df_vis['song'], 'Year': df_vis['year'], 'Topic': df_vis['topic_name']},
-            title="Embeddings 3D coloreados por tópico"
-        )
-        st.plotly_chart(fig)
+        if 'topic_name' not in df_vis.columns:
+            st.warning("Primero debes nombrar los tópicos para colorearlos.")
+        else:
+            fig = px.scatter_3d(
+                x=embeddings[:,0], y=embeddings[:,1], z=embeddings[:,2],
+                color=df_vis['topic_name'],
+                hover_data={'Song': df_vis['song'], 'Year': df_vis['year'], 'Topic': df_vis['topic_name']},
+                title="Embeddings 3D coloreados por tópico"
+            )
+            st.plotly_chart(fig)
