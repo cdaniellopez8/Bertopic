@@ -72,6 +72,7 @@ if uploaded_file:
         df['topic'] = labels
         st.session_state['kmeans_labels'] = labels
         st.session_state['num_topics'] = num_topics
+        st.session_state['df'] = df  # Guardar df actualizado
         st.success(f"✅ Clustering completado: {num_topics} tópicos")
         st.dataframe(df[['song','year','topic']])
 
@@ -105,6 +106,10 @@ if uploaded_file:
         topic_names = {}
         for topic_id, words in st.session_state['topic_keywords'].items():
             topic_names[topic_id] = generate_topic_name(words)
+
+        # Asegurarse de que df tenga la columna 'topic'
+        if 'topic' not in df.columns:
+            df['topic'] = st.session_state['kmeans_labels']
 
         df['topic_name'] = df['topic'].map(topic_names)
         st.session_state['df'] = df
