@@ -11,14 +11,6 @@ import nltk
 import numpy as np
 from nltk.corpus import stopwords
 
-# --- CLASE DUMMY PARA EVITAR EL ERROR DE UMAP ---
-# Definición de la clase fuera de cualquier función para garantizar su existencia
-class DummyEmbedder:
-    """Clase ficticia con un método embed_documents vacío para evitar el crash en visualización."""
-    def embed_documents(self, documents, verbose=False):
-        # Retorna un array vacío; el cálculo de UMAP ya ocurrió con los embeddings reales.
-        return np.array([[] for _ in documents])
-
 # --- CONFIGURACIÓN INICIAL Y DESCARGA DE RECURSOS ---
 try:
     nltk.data.find('corpora/stopwords')
@@ -31,56 +23,45 @@ st.set_page_config(layout="wide", page_title="ShakiraGPT: Análisis de Tópicos"
 st.title("🎤 ShakiraGPT: La Evolución Temática de una Loba 🐺")
 st.markdown("Un tutorial interactivo sobre **Modelado de Tópicos** con BERTopic.")
 st.markdown("---")
+st.warning("⚠️ **ATENCIÓN:** Ejecutando con el **cálculo interno de embeddings (41 canciones)**. Esto consumirá más recursos y tiempo, pero asegura la integridad del modelo para las visualizaciones.")
+
 
 # 🔑 Carga de la Clave API de OpenAI (para el Paso 4)
 openai_api_key = None
 try:
     openai_api_key = st.secrets["openai"]["api_key"]
 except (KeyError, AttributeError):
-    openai_api_key = os.environ.get("OPENEN_API_KEY")
+    openai_api_key = os.environ.get("OPENAI_API_KEY")
 
 if not openai_api_key:
     st.sidebar.error("⚠️ Clave OpenAI no configurada. El Paso 4 (Mejora con LLM) está deshabilitado.")
 
-# 1. Cargar datos (letras) y embeddings (vectores)
-def load_data(file_path_shakira, file_path_embeddings):
-    """Carga los dos archivos Excel, los sincroniza y aplica limpieza rigurosa a embeddings."""
+# 1. Cargar datos (letras) - SÓLO EL ARCHIVO DE SHAKIRA
+def load_data(file_path_shakira):
+    """Carga los datos de Shakira, usando el corpus completo."""
     try:
-        df_shakira_full = pd.read_excel(file_path_shakira)
-        df_embeddings_full = pd.read_excel(file_path_embeddings, header=None) 
+        df_shakira = pd.read_excel(file_path_shakira)
     except FileNotFoundError as e:
-        st.error(f"Error: No se encontró uno de los archivos requeridos: {e}.")
+        st.error(f"Error: No se encontró el archivo requerido: {e}.")
         st.stop()
         
-    df_shakira_full = df_shakira_full.dropna(subset=['lyrics', 'song', 'year']).sort_values(by='year').reset_index(drop=True)
-    df_shakira_full['lyrics'] = df_shakira_full['lyrics'].astype(str)
-    df_shakira_full['year'] = pd.to_numeric(df_shakira_full['year'], errors='coerce').fillna(0).astype(int)
+    df_shakira = df_shakira.dropna(subset=['lyrics', 'song', 'year']).sort_values(by='year').reset_index(drop=True)
+    df_shakira['lyrics'] = df_shakira['lyrics'].astype(str)
+    df_shakira['year'] = pd.to_numeric(df_shakira['year'], errors='coerce').fillna(0).astype(int)
     
-    # ESTRATEGIA DE MEMORIA: USAR SOLO LA MITAD DEL CORPUS
-    full_size = len(df_shakira_full)
-    sample_size = full_size // 2
+    # ESTRATEGIA: USAR EL CORPUS COMPLETO
+    full_size = len(df_shakira)
     
-    df_shakira = df_shakira_full.head(sample_size)
-    df_embeddings = df_embeddings_full.head(sample_size)
-    
-    if len(df_shakira) != len(df_embeddings):
-        st.error(f"Error: La muestra de canciones ({len(df_shakira)}) no coincide con los embeddings ({len(df_embeddings)}).")
-        st.stop()
-    
-    # SOLUCIÓN AL VALUERROR: LIMPIEZA RIGUROSA DEL EMBEDDING
-    embeddings_cleaned = df_embeddings.apply(pd.to_numeric, errors='coerce')
-    embeddings_cleaned = embeddings_cleaned.fillna(0.0)
-    embeddings = embeddings_cleaned.values.astype(np.float32)
+    st.sidebar.info(f"Usando **{full_size}** canciones completas. El modelo calculará los embeddings.")
 
-    st.sidebar.info(f"Usando **{sample_size}** de {full_size} canciones originales (para estabilidad).")
-
-    return df_shakira, embeddings
+    return df_shakira
 
 
 # 2. Entrenar o cargar el modelo BERTopic (Usando caché)
+# 🚨 Los embeddings se calculan internamente por BERTopic (Sentence Transformer)
 @st.cache_resource
-def train_bertopic(docs, embeddings, use_llm_representation=False):
-    """Inicializa y entrena el modelo BERTopic con embeddings precalculados."""
+def train_bertopic(docs, use_llm_representation=False):
+    """Inicializa y entrena el modelo BERTopic, incluyendo el cálculo de embeddings."""
     
     # --- Definición de Modelos BERTopic ---
     umap_model = UMAP(n_neighbors=5, n_components=3, min_dist=0.0, metric='cosine', random_state=42)
@@ -105,6 +86,7 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
             
     # Inicialización de BERTopic 
     topic_model = BERTopic(
+        # ⚠️ Dejamos el embedding_model por defecto (Sentence Transformer) para que calcule
         umap_model=umap_model,
         vectorizer_model=vectorizer_model,
         representation_model=representation_model, 
@@ -113,20 +95,16 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
         verbose=False,
     )
     
-    # 🚨 SOLUCIÓN FINAL AL ERROR DE UMAP: Inyectar el DummyEmbedder
-    # Esto asegura que el método exista para la visualización, pero no consume memoria.
-    topic_model.embedding_model = DummyEmbedder()
-    
-    with st.spinner("✨ Descubriendo Tópicos con Embeddings Precalculados... ⏳"):
-        topics, probs = topic_model.fit_transform(docs, embeddings=embeddings) 
+    # ⚠️ NO se usa 'embeddings=embeddings' en fit_transform
+    with st.spinner("✨ Calculando Embeddings y Descubriendo Tópicos... ⏳ (Esto puede tardar varios minutos)"):
+        topics, probs = topic_model.fit_transform(docs) 
     
     return topic_model, topics, probs
 
 # --- EJECUCIÓN DEL FLUJO PRINCIPAL ---
 
 FILE_PATH_SHAKIRA = 'shak.xlsx'
-FILE_PATH_EMBEDDINGS = 'embeddings.xlsx'
-df_shakira, embeddings = load_data(FILE_PATH_SHAKIRA, FILE_PATH_EMBEDDINGS)
+df_shakira = load_data(FILE_PATH_SHAKIRA)
 docs = df_shakira['lyrics'].tolist()
 
 st.sidebar.header("Opciones de Modelado")
@@ -136,7 +114,8 @@ use_llm = st.sidebar.toggle(
     disabled=not openai_api_key
 )
 
-topic_model, topics, probs = train_bertopic(docs, embeddings, use_llm_representation=use_llm)
+# ⚠️ LLAMADA SIN EMBEDDINGS
+topic_model, topics, probs = train_bertopic(docs, use_llm_representation=use_llm)
 df_shakira['topic'] = topics
 
 # Preparación de datos para la visualización
@@ -148,29 +127,30 @@ df_topics = df_topics.rename(columns={
     'Representation': 'Palabras Clave (c-TF-IDF)'
 })
 
+
 # --------------------------------------------------------------------------------------
 ## ➡️ PASO 1: EXPLORACIÓN DE DATOS
 # --------------------------------------------------------------------------------------
 
 st.header("1️⃣ Paso Inicial: Carga y Limpieza de Datos")
-st.markdown("Preparamos las letras y aplicamos un filtro básico, eliminando *stopwords* comunes en español.")
+st.markdown("Se ha cargado el **corpus completo** de Shakira.")
 st.dataframe(df_shakira[['song', 'year', 'lyrics']].head(), use_container_width=True)
 
 st.markdown("---")
 
 # --------------------------------------------------------------------------------------
-## ➡️ PASO 2: CARGA DE EMBEDDINGS Y REDUCCIÓN DE DIMENSIONALIDAD (UMAP)
+## ➡️ PASO 2: CÁLCULO DE EMBEDDINGS Y REDUCCIÓN DE DIMENSIONALIDAD (UMAP)
 # --------------------------------------------------------------------------------------
 
-st.header("2️⃣ Carga de Embeddings Precalculados y Proyección (UMAP)")
+st.header("2️⃣ Cálculo de Embeddings y Proyección (UMAP)")
 st.markdown("""
-- **Embeddings:** Cargamos los vectores numéricos precalculados, saltando el costoso paso de BERT.
-- **UMAP:** Proyecta esos vectores limpios a 3D para la visualización.
+- **Embeddings:** Se ha utilizado el modelo BERT predeterminado para calcular los vectores de cada canción.
+- **UMAP:** Proyecta esos vectores a 3D. El modelo ahora es completo y estable.
 """)
 
 try:
-    # Pasamos los embeddings REALES (para el hover) y confiamos en el DummyEmbedder
-    fig_docs = topic_model.visualize_documents(docs, custom_labels=True, title="Mapa de Tópicos (UMAP)", embeddings=embeddings)
+    # 🚨 Visualización ESTÁNDAR, sin pasar embeddings=...
+    fig_docs = topic_model.visualize_documents(docs, custom_labels=True, title="Mapa de Tópicos (UMAP)")
     st.plotly_chart(fig_docs, use_container_width=True)
 except Exception as e:
     st.error(f"Error al generar la visualización UMAP: {e}.")
@@ -190,7 +170,7 @@ st.dataframe(
     use_container_width=True
 )
 
-# Solución al ValueError en Plotly: Solo generar si hay tópicos válidos
+# Generar gráfico solo si hay tópicos válidos
 if not df_topics.empty:
     st.subheader("Visualización de las Palabras Clave")
     fig_bar = topic_model.visualize_barchart(top_n_topics=min(10, len(df_topics)), n_words=8, custom_labels=True)
@@ -235,4 +215,4 @@ except Exception as e:
     st.warning(f"Error al generar el gráfico temporal: {e}.")
 
 st.markdown("---")
-st.caption("Esta implementación está optimizada para la estabilidad y el flujo pedagógico en entornos de recursos limitados.")
+st.caption("Esta implementación utiliza el flujo estándar de BERTopic, lo que garantiza la integridad de los componentes del modelo.")
