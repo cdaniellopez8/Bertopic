@@ -56,7 +56,7 @@ def train_bertopic(docs, use_llm_representation=False):
     
     # --- Definición de Stopwords para el preprocesamiento (¡Mejora 3!)
     spanish_stopwords = stopwords.words('spanish')
-    vectorizer_model = CountVectorizer(stop_words=spanish_stopwords, min_df=5)
+    vectorizer_model = CountVectorizer(stop_words=spanish_stopwords, min_df=2)
 
     representation_model = None
     
@@ -256,4 +256,5 @@ else:
     st.info("No hay canciones para este tópico.")
 
 st.caption("¡Gracias por explorar la evolución de los tópicos en la discografía de Shakira!")
+
 
