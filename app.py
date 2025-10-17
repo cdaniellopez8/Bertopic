@@ -15,13 +15,15 @@ from nltk.corpus import stopwords
 try:
     nltk.data.find('corpora/stopwords')
 except:
+    # Usar st.info en lugar de print/warning para Streamlit
+    st.info("Descargando el recurso 'stopwords' de NLTK (solo la primera vez).")
     nltk.download('stopwords')
 
 # Título y Configuración Inicial
 st.set_page_config(layout="wide", page_title="ShakiraGPT: Análisis de Tópicos")
 st.title("🎤 ShakiraGPT: La Evolución Temática de una Loba 🐺")
+st.markdown("Un tutorial interactivo sobre **Modelado de Tópicos** con BERTopic.")
 st.markdown("---")
-st.info("⚠️ Ejecutando en **Modo Demostración** (usando la **mitad del corpus**) para cumplir con los límites de memoria de la plataforma.")
 
 # 🔑 Carga de la Clave API de OpenAI (para el Paso 4)
 openai_api_key = None
@@ -33,12 +35,13 @@ except (KeyError, AttributeError):
 if not openai_api_key:
     st.sidebar.error("⚠️ Clave OpenAI no configurada. El Paso 4 (Mejora con LLM) está deshabilitado.")
 
-# 1. Cargar datos (letras) y embeddings (vectores) - SIN CACHÉ PESADA
+# 1. Cargar datos (letras) y embeddings (vectores)
 def load_data(file_path_shakira, file_path_embeddings):
-    """Carga los dos archivos Excel y los sincroniza, usando solo la mitad de las filas."""
+    """Carga los dos archivos Excel, los sincroniza y aplica limpieza rigurosa a embeddings."""
     try:
         df_shakira_full = pd.read_excel(file_path_shakira)
-        df_embeddings_full = pd.read_excel(file_path_embeddings, header=None)
+        # Cargamos con header=None para tratar las columnas como dimensiones
+        df_embeddings_full = pd.read_excel(file_path_embeddings, header=None) 
     except FileNotFoundError as e:
         st.error(f"Error: No se encontró uno de los archivos requeridos: {e}.")
         st.stop()
@@ -47,7 +50,7 @@ def load_data(file_path_shakira, file_path_embeddings):
     df_shakira_full['lyrics'] = df_shakira_full['lyrics'].astype(str)
     df_shakira_full['year'] = pd.to_numeric(df_shakira_full['year'], errors='coerce').fillna(0).astype(int)
     
-    # 🚨 ESTRATEGIA DE MEMORIA: USAR SOLO LA MITAD DEL CORPUS
+    # ESTRATEGIA DE MEMORIA: USAR SOLO LA MITAD DEL CORPUS
     full_size = len(df_shakira_full)
     sample_size = full_size // 2  # Usar la mitad entera
     
@@ -58,35 +61,50 @@ def load_data(file_path_shakira, file_path_embeddings):
     if len(df_shakira) != len(df_embeddings):
         st.error(f"Error: La muestra de canciones ({len(df_shakira)}) no coincide con los embeddings ({len(df_embeddings)}).")
         st.stop()
-        
-    embeddings = df_embeddings.values
     
-    st.sidebar.info(f"Usando **{sample_size}** de {full_size} canciones originales.")
+    # 🚨 SOLUCIÓN AL VALUERROR: LIMPIEZA RIGUROSA DEL EMBEDDING
+    # Asegura que no haya NaN o valores no finitos, que causan el fallo de UMAP
+    embeddings_cleaned = df_embeddings.apply(pd.to_numeric, errors='coerce')
+    embeddings_cleaned = embeddings_cleaned.fillna(0.0) # Rellenar NaN con 0
+    embeddings = embeddings_cleaned.values.astype(np.float32) # Convertir a matriz numérica
+
+    st.sidebar.info(f"Usando **{sample_size}** de {full_size} canciones originales (para estabilidad).")
 
     return df_shakira, embeddings
 
 
-# 2. Entrenar el modelo BERTopic - SIN CACHÉ PESADA
+# 2. Entrenar o cargar el modelo BERTopic (Usando caché)
+@st.cache_resource
 def train_bertopic(docs, embeddings, use_llm_representation=False):
-    """Inicializa y entrena el modelo BERTopic con embeddings precalculados en un subconjunto."""
+    """Inicializa y entrena el modelo BERTopic con embeddings precalculados."""
     
     # --- Definición de Modelos BERTopic ---
+    
+    # UMAP: Modelo de reducción optimizado para ahorrar memoria
     umap_model = UMAP(n_neighbors=5, n_components=3, min_dist=0.0, metric='cosine', random_state=42)
+
+    # CountVectorizer: Stopwords en español y SIN min_df (para evitar ValueError en corpus pequeños)
     spanish_stopwords = stopwords.words('spanish')
-    
-    # CountVectorizer: Sin min_df para evitar el ValueError
     vectorizer_model = CountVectorizer(stop_words=spanish_stopwords) 
+
+    representation_model = KeyBERTInspired() # Representación base
     
-    representation_model = KeyBERTInspired()
-    
+    # 4. Configurar el Modelo de Representación (LLM)
     if use_llm_representation and openai_api_key:
         try:
             client = openai.OpenAI(api_key=openai_api_key)
             prompt = "Genera un título corto y conciso (máximo 6 palabras) para este tópico de canciones. El título debe ser profesional y capturar la esencia del tema."
-            representation_model = OpenAI(client, model="gpt-4o-mini", chat=True, prompt=prompt, delay_in_seconds=5)
-        except:
-             pass # Si falla el LLM, usa KeyBERT
-
+            
+            representation_model = OpenAI(client, 
+                                          model="gpt-4o-mini", 
+                                          chat=True,
+                                          prompt=prompt,
+                                          delay_in_seconds=5)
+        except Exception:
+            # Si falla el LLM, usamos KeyBERT y avisamos
+            st.sidebar.warning("Fallo al conectar con GPT-4o-mini. Usando KeyBERT.")
+            
+    # Inicialización de BERTopic 
     topic_model = BERTopic(
         umap_model=umap_model,
         vectorizer_model=vectorizer_model,
@@ -96,7 +114,8 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
         verbose=False,
     )
     
-    with st.spinner("✨ Entrenando modelo en subconjunto de datos (Modo Demostración)... ⏳"):
+    # Entrenamiento (Aquí se usa 'embeddings=embeddings')
+    with st.spinner("✨ Descubriendo Tópicos con Embeddings Precalculados... ⏳"):
         topics, probs = topic_model.fit_transform(docs, embeddings=embeddings) 
     
     return topic_model, topics, probs
@@ -115,7 +134,6 @@ use_llm = st.sidebar.toggle(
     disabled=not openai_api_key
 )
 
-# EJECUCIÓN CON MUESTRA REDUCIDA
 topic_model, topics, probs = train_bertopic(docs, embeddings, use_llm_representation=use_llm)
 df_shakira['topic'] = topics
 
@@ -134,7 +152,7 @@ df_topics = df_topics.rename(columns={
 # --------------------------------------------------------------------------------------
 
 st.header("1️⃣ Paso Inicial: Carga y Limpieza de Datos")
-st.markdown(f"**Materia Prima:** Solo se usa una muestra de **{len(df_shakira)}** canciones para demostración.")
+st.markdown("Preparamos las letras y aplicamos un filtro básico, eliminando *stopwords* comunes en español.")
 st.dataframe(df_shakira[['song', 'year', 'lyrics']].head(), use_container_width=True)
 
 st.markdown("---")
@@ -143,10 +161,10 @@ st.markdown("---")
 # ➡️ PASO 2: CARGA DE EMBEDDINGS Y REDUCCIÓN DE DIMENSIONALIDAD (UMAP)
 # --------------------------------------------------------------------------------------
 
-st.header("2️⃣ Carga de Embeddings y Proyección (UMAP)")
-st.markdown(f"""
-**Embeddings:** Cargamos los vectores precalculados ({embeddings.shape[1]} dimensiones) para saltar el costoso paso de BERT.
-**UMAP:** Proyecta esos vectores a 3D para la visualización.
+st.header("2️⃣ Carga de Embeddings Precalculados y Proyección (UMAP)")
+st.markdown("""
+- **Embeddings:** Cargamos los vectores numéricos precalculados, saltando el costoso paso de BERT.
+- **UMAP:** Proyecta esos vectores limpios a 3D para la visualización.
 """)
 
 try:
@@ -201,14 +219,14 @@ st.markdown("---")
 st.header("5️⃣ Análisis Final: Tópicos y Tendencias Temporales")
 
 st.subheader("Evolución de la Prominencia Temática")
-st.markdown("El gráfico muestra cómo la importancia de los temas ha cambiado con el tiempo. (La precisión es limitada debido a la muestra).")
+st.markdown("El gráfico muestra cómo la importancia de los temas ha cambiado con el tiempo.")
 
 try:
     topics_over_time = topic_model.topics_over_time(docs, df_shakira['year'])
     fig_time = topic_model.visualize_topics_over_time(topics_over_time, top_n_topics=10, custom_labels=True)
     st.plotly_chart(fig_time, use_container_width=True)
 except Exception as e:
-    st.warning(f"Error al generar el gráfico temporal: {e}. Puede ser por la pequeña muestra de datos.")
+    st.warning(f"Error al generar el gráfico temporal: {e}.")
 
 st.markdown("---")
-st.caption("Solución final implementada para priorizar la ejecución pedagógica sobre la precisión en entornos de recursos limitados.")
+st.caption("Esta implementación está optimizada para la estabilidad y el flujo pedagógico en entornos de recursos limitados.")
