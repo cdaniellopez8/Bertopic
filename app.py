@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from bertopic import BERTopic
-from bertopic.representation import OpenAI, KeyBERTInspired
+from bertopic.representation import OpenAI, MaximalMarginalRelevance
 from sklearn.feature_extraction.text import CountVectorizer
 from umap import UMAP
 import openai
@@ -79,7 +79,8 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
     spanish_stopwords = stopwords.words('spanish')
     vectorizer_model = CountVectorizer(stop_words=spanish_stopwords) 
 
-    representation_model = KeyBERTInspired() # Representación base
+    # 🚨 SOLUCIÓN AL ATTRIBUTEERROR: Usamos MMR como modelo base
+    representation_model = MaximalMarginalRelevance(diversity=0.3) 
     
     # 4. Configurar el Modelo de Representación (LLM)
     if use_llm_representation and openai_api_key:
@@ -93,7 +94,7 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
                                           prompt=prompt,
                                           delay_in_seconds=5)
         except Exception:
-            st.sidebar.warning("Fallo al conectar con GPT-4o-mini. Usando KeyBERT.")
+            st.sidebar.warning("Fallo al conectar con GPT-4o-mini. Usando MMR.")
             
     # Inicialización de BERTopic 
     topic_model = BERTopic(
@@ -104,9 +105,6 @@ def train_bertopic(docs, embeddings, use_llm_representation=False):
         calculate_probabilities=True,
         verbose=False,
     )
-    
-    # 🚨 SOLUCIÓN al AttributeError: Añadir un placeholder para que KeyBERT no falle
-    topic_model.embedding_model = None 
     
     # Entrenamiento (Aquí se usa 'embeddings=embeddings')
     with st.spinner("✨ Descubriendo Tópicos con Embeddings Precalculados... ⏳"):
