@@ -177,7 +177,7 @@ else:
 # -------------------------
 # 3) Embeddings (igual que antes) + primer embedding ejemplo
 # -------------------------
-st.header("3 — Generación de embeddings (igual que antes)")
+st.header("3 — Generación de embeddings")
 
 # Button to (re)generate embeddings
 if "embeddings" not in st.session_state:
@@ -205,7 +205,7 @@ st.markdown("---")
 # -------------------------
 # 4) UMAP 2D visualization (Plotly) with song titles visible
 # -------------------------
-st.header("4 — Visualización UMAP 2D (interactivo, titles visible)")
+st.header("4 — Visualización UMAP 2D")
 
 if "embeddings" not in st.session_state:
     st.info("Genera los embeddings en la sección 3 antes de visualizar.")
@@ -239,7 +239,7 @@ else:
 st.markdown("---")
 
 # -------------------------
-# 5) BERTopic explanation + training
+# 5) BERTopic
 # -------------------------
 st.header("5 — Explicación breve del pipeline y entrenamiento BERTopic")
 st.markdown("""
@@ -280,7 +280,7 @@ if st.button("🚀 Entrenar BERTopic"):
 st.markdown("---")
 
 # -------------------------
-# 6) TF-IDF interactive, renaming topics and using names in plots
+# 6) TF-IDF
 # -------------------------
 st.header("6 — Explorar términos por tópico (Top-N) y renombrar tópicos")
 
@@ -353,7 +353,7 @@ else:
 st.markdown("---")
 
 # -------------------------
-# 7) Visualizaciones usando nombres personalizados y evolución por año
+# 7) Visualizaciones de topicos y su evolución por año
 # -------------------------
 st.header("7 — Visualizaciones finales, evolución por año y listas de canciones por tópico")
 
@@ -405,3 +405,4 @@ else:
 
 st.markdown("---")
 st.caption("Flujo: 1) carga → 2) limpieza interactiva → 3) embeddings (igual que antes) → 4) UMAP (plotly) → 5) BERTopic → 6) TF-IDF top-N + renombrado → 7) visualizaciones y listas.")
+
