@@ -241,7 +241,7 @@ st.markdown("---")
 # -------------------------
 # 5) BERTopic
 # -------------------------
-st.header("5 — Explicación breve del pipeline y entrenamiento BERTopic")
+st.header("5 — BERTopic")
 st.markdown("""
 **Breve explicación (paso a paso)**:
 - **Embeddings**: representaciones numéricas de cada letra (capturan semántica).
@@ -282,7 +282,7 @@ st.markdown("---")
 # -------------------------
 # 6) TF-IDF
 # -------------------------
-st.header("6 — Explorar términos por tópico (Top-N) y renombrar tópicos")
+st.header("6 — Explorar términos por tópico (Top-N) usando TF-IDF")
 
 if "topic_model" not in st.session_state:
     st.info("Entrena BERTopic en la sección 5 para explorar términos y renombrar tópicos.")
@@ -355,7 +355,7 @@ st.markdown("---")
 # -------------------------
 # 7) Visualizaciones de topicos y su evolución por año
 # -------------------------
-st.header("7 — Visualizaciones finales, evolución por año y listas de canciones por tópico")
+st.header("7 — Visualizaciones de tópicos y su evolución por año")
 
 if "topic_model" not in st.session_state:
     st.info("Entrena BERTopic y guarda nombres de tópicos para ver visualizaciones.")
@@ -405,4 +405,5 @@ else:
 
 st.markdown("---")
 st.caption("Flujo: 1) carga → 2) limpieza interactiva → 3) embeddings (igual que antes) → 4) UMAP (plotly) → 5) BERTopic → 6) TF-IDF top-N + renombrado → 7) visualizaciones y listas.")
+
 
