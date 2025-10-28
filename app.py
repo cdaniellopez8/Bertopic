@@ -288,19 +288,23 @@ if "topic_model" not in st.session_state:
     st.info("Entrena BERTopic en la sección 5 para visualizar el mapa de intertópicos.")
 else:
     topic_model = st.session_state["topic_model"]
+
     try:
         topic_info = topic_model.get_topic_info()
         n_topics_total = len(topic_info)
 
-        if n_topics_total <= 2:
-            st.info("Hay muy pocos tópicos para generar el mapa de intertópicos (se necesitan al menos 3).")
+        # Filtrar el ruido (-1) del conteo real
+        n_real_topics = topic_info[topic_info["Topic"] != -1].shape[0]
+
+        if n_real_topics < 3:
+            st.warning(f"Solo hay {n_real_topics} tópicos válidos. Se necesitan al menos 3 para generar el mapa de intertópicos.")
         else:
             with st.spinner("Generando visualización de intertópicos..."):
-                # Las versiones nuevas no usan n_components ni n_clusters
-                n_show = min(20, max(3, n_topics_total - 1))
+                # Ajustar número de tópicos a mostrar para evitar k ≥ N
+                n_show = min(10, n_real_topics - 1)
                 fig_inter = topic_model.visualize_topics(top_n_topics=n_show)
                 st.plotly_chart(fig_inter, use_container_width=True)
-                st.caption(f"Mostrando {n_show} tópicos (de {n_topics_total} totales)")
+                st.caption(f"Mostrando {n_show} tópicos (de {n_real_topics} reales)")
     except Exception as e:
         st.error(f"Error al generar el gráfico de intertópicos: {e}")
 
@@ -432,6 +436,7 @@ else:
 
 st.markdown("---")
 st.caption("Flujo: 1) carga → 2) limpieza interactiva → 3) embeddings (igual que antes) → 4) UMAP (plotly) → 5) BERTopic → 6) TF-IDF top-N + renombrado → 7) visualizaciones y listas.")
+
 
 
 
