@@ -279,41 +279,6 @@ if st.button("🚀 Entrenar BERTopic"):
 
 st.markdown("---")
 
-st.header("5.1 Similitud entre Tópicos (Usando embeddings de documentos)")
-
-# Obtener los embeddings de los documentos
-doc_embeddings = topic_model.embedding_model.embed(topics_docs)  # topics_docs = tus documentos originales
-
-# Obtener los tópicos asignados a cada documento
-topics = topic_model.topics_
-
-# Promediar embeddings por tópico
-unique_topics = np.unique(topics)
-topic_embeddings = []
-for t in unique_topics:
-    if t == -1:
-        continue  # ignorar outliers
-    topic_embeddings.append(np.mean(doc_embeddings[topics==t], axis=0))
-topic_embeddings = np.array(topic_embeddings)
-
-# Calcular la similitud coseno
-similarity_matrix = cosine_similarity(topic_embeddings)
-
-# Crear etiquetas para los tópicos
-topic_labels = [f"Tópico {t}" for t in unique_topics if t != -1]
-
-# Graficar heatmap
-fig = ff.create_annotated_heatmap(
-    z=similarity_matrix,
-    x=topic_labels,
-    y=topic_labels,
-    colorscale='Viridis',
-    showscale=True,
-    annotation_text=np.round(similarity_matrix, 2)
-)
-
-fig.update_layout(title_text="Heatmap de Similitud entre Tópicos", height=600, width=600)
-st.plotly_chart(fig)
 # -------------------------
 # 6) TF-IDF
 # -------------------------
@@ -440,6 +405,7 @@ else:
 
 st.markdown("---")
 st.caption("Flujo: 1) carga → 2) limpieza interactiva → 3) embeddings (igual que antes) → 4) UMAP (plotly) → 5) BERTopic → 6) TF-IDF top-N + renombrado → 7) visualizaciones y listas.")
+
 
 
 
