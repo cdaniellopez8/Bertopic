@@ -280,6 +280,24 @@ if st.button("🚀 Entrenar BERTopic"):
 st.markdown("---")
 
 # -------------------------
+# 5.1) Visualización Intertopic Distance Map
+# -------------------------
+st.header("📊 Mapa de tópicos (BERTopic)")
+
+if "topic_model" not in st.session_state:
+    st.info("Entrena BERTopic en la sección 5 para visualizar el mapa de intertópicos.")
+else:
+    topic_model = st.session_state["topic_model"]
+    try:
+        with st.spinner("Generando visualización de intertópicos..."):
+            fig_inter = topic_model.visualize_topics()
+            st.plotly_chart(fig_inter, use_container_width=True)
+    except Exception as e:
+        st.error(f"Error al generar el gráfico de intertópicos: {e}")
+
+st.markdown("---")
+
+# -------------------------
 # 6) TF-IDF
 # -------------------------
 st.header("6 — Explorar términos por tópico (Top-N) usando TF-IDF")
@@ -405,5 +423,6 @@ else:
 
 st.markdown("---")
 st.caption("Flujo: 1) carga → 2) limpieza interactiva → 3) embeddings (igual que antes) → 4) UMAP (plotly) → 5) BERTopic → 6) TF-IDF top-N + renombrado → 7) visualizaciones y listas.")
+
 
 
