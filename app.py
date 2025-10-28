@@ -288,28 +288,33 @@ if "topic_model" not in st.session_state:
     st.info("Entrena BERTopic en la sección 5 para visualizar el mapa de intertópicos.")
 else:
     topic_model = st.session_state["topic_model"]
-
     try:
         topic_info = topic_model.get_topic_info()
-        # Filtrar el ruido (-1)
         topic_info_valid = topic_info[topic_info["Topic"] != -1]
         n_real_topics = topic_info_valid.shape[0]
 
         if n_real_topics < 3:
-            st.warning(
-                f"No hay suficientes tópicos válidos ({n_real_topics}) "
-                "para generar el mapa de intertópicos. Se necesitan al menos 3."
-            )
+            st.warning(f"No hay suficientes tópicos válidos ({n_real_topics}) para generar el mapa de intertópicos.")
         else:
             with st.spinner("Generando visualización de intertópicos..."):
-                # Mostrar hasta 10 o todos menos uno
-                n_show = min(10, n_real_topics - 1)
-                fig_inter = topic_model.visualize_topics(top_n_topics=n_show)
-                st.plotly_chart(fig_inter, use_container_width=True)
-                st.caption(f"Mostrando {n_show} tópicos (de {n_real_topics} totales)")
+                try:
+                    n_show = min(10, n_real_topics - 1)
+                    fig_inter = topic_model.visualize_topics(top_n_topics=n_show)
+                    st.plotly_chart(fig_inter, use_container_width=True)
+                    st.caption(f"Mostrando {n_show} tópicos (de {n_real_topics} totales)")
+                except Exception as inner_e:
+                    st.error("No se pudo generar el mapa de intertópicos (estructura interna insuficiente).")
+                    st.info(f"Motivo técnico: {inner_e}")
+                    # fallback simple
+                    import plotly.express as px
+                    st.write("Visualización alternativa: distribución de canciones por tópico.")
+                    counts = st.session_state["df_topics"]["topic"].value_counts().reset_index()
+                    counts.columns = ["topic", "count"]
+                    fig_bar = px.bar(counts, x="topic", y="count", title="Distribución de canciones por tópico")
+                    st.plotly_chart(fig_bar, use_container_width=True)
     except Exception as e:
         st.error(f"No fue posible generar el gráfico de intertópicos: {e}")
-        st.info("Esto suele ocurrir cuando el modelo tiene muy pocos tópicos o todos fueron clasificados como ruido (-1).")
+        st.info("Esto suele ocurrir cuando la estructura semántica entre tópicos es demasiado similar o el modelo tiene muy pocos documentos por grupo.")
 
 st.markdown("---")
 
@@ -439,6 +444,7 @@ else:
 
 st.markdown("---")
 st.caption("Flujo: 1) carga → 2) limpieza interactiva → 3) embeddings (igual que antes) → 4) UMAP (plotly) → 5) BERTopic → 6) TF-IDF top-N + renombrado → 7) visualizaciones y listas.")
+
 
 
 
