@@ -289,23 +289,28 @@ if "topic_model" not in st.session_state:
 else:
     topic_model = st.session_state["topic_model"]
     try:
-        with st.spinner("Generando visualización de intertópicos..."):
-            # Parámetros ajustados para evitar error de scipy
-            n_topics_total = len(topic_model.get_topic_info())
-            n_show = min(20, max(2, n_topics_total - 1))  # evita k ≥ N
-            fig_inter = topic_model.visualize_topics(
-                top_n_topics=n_show,
-                n_clusters=None,
-                n_components=2,  # fuerza 2 componentes
-                width=800,
-                height=600
-            )
-            st.plotly_chart(fig_inter, use_container_width=True)
-            st.caption(f"Mostrando {n_show} tópicos (de {n_topics_total} totales)")
+        topic_info = topic_model.get_topic_info()
+        n_topics_total = len(topic_info)
+
+        if n_topics_total <= 2:
+            st.info("Hay muy pocos tópicos para generar el mapa de intertópicos (se necesitan al menos 3).")
+        else:
+            with st.spinner("Generando visualización de intertópicos..."):
+                # Evita el error de scipy ajustando top_n_topics dinámicamente
+                n_show = min(20, max(3, n_topics_total - 1))
+                fig_inter = topic_model.visualize_topics(
+                    top_n_topics=n_show,
+                    n_components=2,   # fuerza a 2D
+                    width=900,
+                    height=600
+                )
+                st.plotly_chart(fig_inter, use_container_width=True)
+                st.caption(f"Mostrando {n_show} tópicos (de {n_topics_total} totales)")
     except Exception as e:
         st.error(f"Error al generar el gráfico de intertópicos: {e}")
 
 st.markdown("---")
+
 
 # -------------------------
 # 6) TF-IDF
@@ -433,6 +438,7 @@ else:
 
 st.markdown("---")
 st.caption("Flujo: 1) carga → 2) limpieza interactiva → 3) embeddings (igual que antes) → 4) UMAP (plotly) → 5) BERTopic → 6) TF-IDF top-N + renombrado → 7) visualizaciones y listas.")
+
 
 
 
