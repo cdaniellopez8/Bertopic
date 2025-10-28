@@ -282,7 +282,7 @@ st.markdown("---")
 # -------------------------
 # 5.1) Visualización Intertopic Distance Map
 # -------------------------
-st.header("📊 Mapa de tópicos (BERTopic)")
+st.header("📊 Mapa de intertópicos (BERTopic)")
 
 if "topic_model" not in st.session_state:
     st.info("Entrena BERTopic en la sección 5 para visualizar el mapa de intertópicos.")
@@ -290,8 +290,18 @@ else:
     topic_model = st.session_state["topic_model"]
     try:
         with st.spinner("Generando visualización de intertópicos..."):
-            fig_inter = topic_model.visualize_topics()
+            # Parámetros ajustados para evitar error de scipy
+            n_topics_total = len(topic_model.get_topic_info())
+            n_show = min(20, max(2, n_topics_total - 1))  # evita k ≥ N
+            fig_inter = topic_model.visualize_topics(
+                top_n_topics=n_show,
+                n_clusters=None,
+                n_components=2,  # fuerza 2 componentes
+                width=800,
+                height=600
+            )
             st.plotly_chart(fig_inter, use_container_width=True)
+            st.caption(f"Mostrando {n_show} tópicos (de {n_topics_total} totales)")
     except Exception as e:
         st.error(f"Error al generar el gráfico de intertópicos: {e}")
 
@@ -423,6 +433,7 @@ else:
 
 st.markdown("---")
 st.caption("Flujo: 1) carga → 2) limpieza interactiva → 3) embeddings (igual que antes) → 4) UMAP (plotly) → 5) BERTopic → 6) TF-IDF top-N + renombrado → 7) visualizaciones y listas.")
+
 
 
 
