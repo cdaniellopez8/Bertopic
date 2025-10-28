@@ -279,44 +279,33 @@ if st.button("🚀 Entrenar BERTopic"):
 
 st.markdown("---")
 
-# -------------------------
-# 5.1) Visualización Intertopic Distance Map
-# -------------------------
-st.header("📊 Mapa de intertópicos (BERTopic)")
+st.header("5.1 Similitud entre Tópicos")
 
-if "topic_model" not in st.session_state:
-    st.info("Entrena BERTopic en la sección 5 para visualizar el mapa de intertópicos.")
-else:
-    topic_model = st.session_state["topic_model"]
-    try:
-        topic_info = topic_model.get_topic_info()
-        topic_info_valid = topic_info[topic_info["Topic"] != -1]
-        n_real_topics = topic_info_valid.shape[0]
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+import plotly.figure_factory as ff
 
-        if n_real_topics < 3:
-            st.warning(f"No hay suficientes tópicos válidos ({n_real_topics}) para generar el mapa de intertópicos.")
-        else:
-            with st.spinner("Generando visualización de intertópicos..."):
-                try:
-                    n_show = min(10, n_real_topics - 1)
-                    fig_inter = topic_model.visualize_topics(top_n_topics=n_show)
-                    st.plotly_chart(fig_inter, use_container_width=True)
-                    st.caption(f"Mostrando {n_show} tópicos (de {n_real_topics} totales)")
-                except Exception as inner_e:
-                    st.error("No se pudo generar el mapa de intertópicos (estructura interna insuficiente).")
-                    st.info(f"Motivo técnico: {inner_e}")
-                    # fallback simple
-                    import plotly.express as px
-                    st.write("Visualización alternativa: distribución de canciones por tópico.")
-                    counts = st.session_state["df_topics"]["topic"].value_counts().reset_index()
-                    counts.columns = ["topic", "count"]
-                    fig_bar = px.bar(counts, x="topic", y="count", title="Distribución de canciones por tópico")
-                    st.plotly_chart(fig_bar, use_container_width=True)
-    except Exception as e:
-        st.error(f"No fue posible generar el gráfico de intertópicos: {e}")
-        st.info("Esto suele ocurrir cuando la estructura semántica entre tópicos es demasiado similar o el modelo tiene muy pocos documentos por grupo.")
+# Obtener los embeddings de los tópicos
+topic_embeddings = topic_model.topic_embeddings_
 
-st.markdown("---")
+# Calcular la matriz de similitud coseno
+similarity_matrix = cosine_similarity(topic_embeddings)
+
+# Crear etiquetas para los tópicos
+topic_labels = [f"Tópico {i}" for i in range(len(topic_embeddings))]
+
+# Heatmap de similitud
+fig = ff.create_annotated_heatmap(
+    z=similarity_matrix,
+    x=topic_labels,
+    y=topic_labels,
+    colorscale='Viridis',
+    showscale=True,
+    annotation_text=np.round(similarity_matrix, 2)
+)
+
+fig.update_layout(title_text="Heatmap de Similitud entre Tópicos", height=600, width=600)
+st.plotly_chart(fig)
 
 # -------------------------
 # 6) TF-IDF
@@ -444,6 +433,7 @@ else:
 
 st.markdown("---")
 st.caption("Flujo: 1) carga → 2) limpieza interactiva → 3) embeddings (igual que antes) → 4) UMAP (plotly) → 5) BERTopic → 6) TF-IDF top-N + renombrado → 7) visualizaciones y listas.")
+
 
 
 
