@@ -291,22 +291,25 @@ else:
 
     try:
         topic_info = topic_model.get_topic_info()
-        n_topics_total = len(topic_info)
-
-        # Filtrar el ruido (-1) del conteo real
-        n_real_topics = topic_info[topic_info["Topic"] != -1].shape[0]
+        # Filtrar el ruido (-1)
+        topic_info_valid = topic_info[topic_info["Topic"] != -1]
+        n_real_topics = topic_info_valid.shape[0]
 
         if n_real_topics < 3:
-            st.warning(f"Solo hay {n_real_topics} tópicos válidos. Se necesitan al menos 3 para generar el mapa de intertópicos.")
+            st.warning(
+                f"No hay suficientes tópicos válidos ({n_real_topics}) "
+                "para generar el mapa de intertópicos. Se necesitan al menos 3."
+            )
         else:
             with st.spinner("Generando visualización de intertópicos..."):
-                # Ajustar número de tópicos a mostrar para evitar k ≥ N
+                # Mostrar hasta 10 o todos menos uno
                 n_show = min(10, n_real_topics - 1)
                 fig_inter = topic_model.visualize_topics(top_n_topics=n_show)
                 st.plotly_chart(fig_inter, use_container_width=True)
-                st.caption(f"Mostrando {n_show} tópicos (de {n_real_topics} reales)")
+                st.caption(f"Mostrando {n_show} tópicos (de {n_real_topics} totales)")
     except Exception as e:
-        st.error(f"Error al generar el gráfico de intertópicos: {e}")
+        st.error(f"No fue posible generar el gráfico de intertópicos: {e}")
+        st.info("Esto suele ocurrir cuando el modelo tiene muy pocos tópicos o todos fueron clasificados como ruido (-1).")
 
 st.markdown("---")
 
@@ -436,6 +439,7 @@ else:
 
 st.markdown("---")
 st.caption("Flujo: 1) carga → 2) limpieza interactiva → 3) embeddings (igual que antes) → 4) UMAP (plotly) → 5) BERTopic → 6) TF-IDF top-N + renombrado → 7) visualizaciones y listas.")
+
 
 
 
